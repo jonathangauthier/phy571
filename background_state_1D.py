@@ -69,7 +69,7 @@ N = 100
 hbar = 1
 m = 1
 D = 1j*hbar/(2*m)
-w = 30
+w = 31
 Ng = 1
 
 def V(x):
