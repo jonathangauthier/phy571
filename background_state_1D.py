@@ -6,20 +6,25 @@ from scipy.sparse import diags
 import scipy.optimize as opt
 import math
 from  scipy.misc import derivative as der
+
 src = "C:\\Users\\Maxime\\Documents\\phy571_project"
+
+
+## Definition of the Algorithm
 
 class groundState1DCN:
     """Find the ground state of the Gross-Pitaevski equation for a 1D problem via Crank-Nicholson"""
     
-    def __init__(self,xMin,xMax, tauMax, J, N, D, f, u0):
+    def __init__(self,xMin,xMax, tauMax, J, N, D, f, u0, a=-1j):
         """Equation: du/dt = D*d2u/dx2 + f(x,u)
                 x in [xMin,xMax]
                 t in [0,-1j*tauMax]
                 J spatial points
                 N temporal points
                 u(x,0) = u0(x)
+           Evolve in imaginary time for a=-1j and in real time for a=1
         """
-        
+        #definition of parameters
         self.xMin = xMin
         self.xMax = xMax
         self.tauMax = tauMax
@@ -29,11 +34,13 @@ class groundState1DCN:
         self.f = f
         self.u0 = u0
         
+        #definition of the grid
         self.x, self.dx = np.linspace(xMin,xMax, J, retstep=True)
         self.tau, self.dtau = np.linspace(0,tauMax, N, retstep=True)
-        self.dt = -1j*self.dtau
+        self.dt = a*self.dtau
         self.sigma = D*self.dt/(2*self.dx**2)
         
+        #definition of the matrix A
         A = np.zeros((3,J),dtype=complex)
         A[0,1] = 0
         A[0,2:] = -self.sigma
@@ -44,6 +51,7 @@ class groundState1DCN:
         A[2,-2] = 0
         self.A = A
         
+        #definition of the matrix B
         diaUp = [self.sigma]*(self.J-1)
         diaUp[0] = 0
         diaDown = [self.sigma]*(self.J-1)
@@ -54,15 +62,18 @@ class groundState1DCN:
         diagonals = [dia, diaUp, diaDown]
         self.B = np.array(diags(diagonals, [0, 1, -1]).toarray(),dtype=complex)
         
+        #defintion of the initial condition
         self.U = np.array((np.vectorize(u0))(self.x),dtype=complex)
         self.oldU = np.zeros_like(self.U, dtype=complex)
         self.isFirstStep = True
         
     def step(self):
         """Calculate the next step in the Crank-Nicholson algorithm"""
+        #for the first step, we calculate only with the previous state
         if self.isFirstStep:
             F = (np.vectorize(self.f))(self.x, self.U)
             self.isFirstStep = False
+        #else, we calculate with the previous step and the one before to keep the second order accuracy
         else:
             F = 3/2*(np.vectorize(self.f))(self.x, self.U)-1/2*(np.vectorize(self.f))(self.x, self.oldU)
         self.oldU = np.copy(self.U)
@@ -75,28 +86,38 @@ class groundState1DCN:
         """Renormalize the current solution"""
         self.U /= (np.sum(np.abs(self.U)**2)*self.dx)**0.5
         
+     
+
+## Definition of the problem
+
 xMax = 30
 tauMax = 10
-J = 1000
-N = 400
+J = 1000 #number of spatial points
+N = 400 #number of temporal points
 hbar = 1
 m = 1
 D = 1j*hbar/(2*m)
-w = 0.1
+w = 0.1 #paramater of harmonic oscillator
 Ng = 1
+a=-1j #imaginary time
+
 
 def V(x):
+    """Potential of the BEC"""
     return 0.5*m*(w*x)**2
     
 def f(x,u):
     return 1/(1j*hbar)*(V(x))*u
-    return 1/(1j*hbar)*(V(x)+ Ng*np.abs(u)**2)*u
+    #return 1/(1j*hbar)*(V(x)+ Ng*np.abs(u)**2)*u
 
 def u0(x):
+    """initial state"""
     return np.exp(-10*(x)**2)
     
 gS = groundState1DCN(-xMax,xMax,tauMax,J,N,D,f,u0)
 
+
+## Definition of the useful functions
 
 def hermite_poly(x,n):
     """Give the value of the n-th physicists' Hermite polynomial at x"""
@@ -113,7 +134,7 @@ def harmonic_state(n):
     return E_n, psi_n
 
 
-def save_ground():
+def save_simulation():
     for k in range(50):
         gS.renorm()
         gS.step()
@@ -163,57 +184,29 @@ def evolution_to_ground_anim():
     plt.show()
 
 
-evolution_to_ground_anim()
-
-"""
-gS.renorm()
-M = np.zeros(N)
-for k in range(N):
-    M[k] = np.max(gS.U)
-    gS.step()
-    
-    
-def fit(x,a,b):
-    return a*np.exp(-b*x)
-
-
-popt,pcov = opt.curve_fit(fit,gS.tau[N//2:],M[N//2:])
-
-
-
-plt.plot(gS.tau,M)
-plt.plot(gS.tau, fit(gS.tau, *popt))
-
-print("Ground state energy: ")
-print(hbar*popt[1])
-
-plt.show()
-"""
-
-def compute_derivative(f,dx):
-    "compute the derivative of f, where f is an array of the values of the function at points separated with dx"
-    f_prime = np.zeros_like(f)
-    f_prime[0] = (f[1]-f[0])/dx
-    for i in range(1,gS.J-1):
-        f_prime[i] = (f[i+1]-f[i-1])/(2*dx)
-    f_prime[gS.J-1] = (f[gS.J-1]-f[gS.J-2])/dx
-    return f_prime
-
 def get_energy(psi):
-    #compute the second derivative
-    psi_prime = compute_derivative(psi,gS.dx)
-    psi_second = compute_derivative(psi_prime,gS.dx)
-    H_psi =-(hbar)**2/(2*m)*psi_second+1j*hbar*np.vectorize(f)(gS.x,psi)
-    return H_psi
+    """Get the energy of a state, and give the result of the hamiltonian over the state"""
+    #calculate laplacian product
+    L_psi = np.zeros(J)
+    L_psi[1:-1] = (psi[0:-2]+psi[2:]-2*psi[1:-1])/(gS.dx**2)
+    H_psi =-(hbar)**2/(2*m)*L_psi + 1j*hbar*np.vectorize(f)(gS.x,psi)
+    E = np.sum(np.conjugate(psi)*H_psi)*gS.dx
+    return E,H_psi
 
-"""
+
+## Evolution
+
+#Animation of the evolution
+#evolution_to_ground_anim()
+
+
+#Check with the ground state of the harmonic oscillator
 n = 0
-   
-E, psi = harmonic_state(n)
+E_theo, psi = harmonic_state(n)
+E_calc,H_psi = get_energy(psi)
 
-plt.plot(gS.x,psi)
-plt.plot(gS.x,get_energy(psi))
-plt.plot(gS.x,get_energy(psi)/psi)
-plt.plot(gS.x,[hbar*w*(n+1/2)]*J)
+plt.plot(gS.x,np.abs(psi)**2)
+plt.plot(gS.x,[E_theo]*J)
+plt.plot(gS.x,np.abs(H_psi)**2)
+plt.plot(gS.x,[E_calc]*J)
 plt.show()
-"""
