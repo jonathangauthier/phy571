@@ -98,7 +98,7 @@ hbar = 1
 m = 1
 D = 1j*hbar/(2*m)
 w = 0.1 #paramater of harmonic oscillator
-Ng = 1
+Ng = 100*0.05/10
 a=-1j #imaginary time
 
 
@@ -106,9 +106,13 @@ def V(x):
     """Potential of the BEC"""
     return 0.5*m*(w*x)**2
     
+def Veff(x,u):
+    """Effective potential of the BEC"""
+    return V(x)+ Ng*np.abs(u)**2
+    
 def f(x,u):
-    return 1/(1j*hbar)*(V(x))*u
-    #return 1/(1j*hbar)*(V(x)+ Ng*np.abs(u)**2)*u
+    #return 1/(1j*hbar)*(V(x))*u
+    return 1/(1j*hbar)*Veff(x,u)*u
 
 def u0(x):
     """initial state"""
@@ -151,33 +155,52 @@ def evolution_to_ground_static():
     plt.show()
 
 
-def evolution_to_ground_anim():
+def evolution_to_ground_anim(number_of_steps_per_frame, potential_size_factor=50):
+    """Print the evolution of the BEC
+            number_of_steps_per_frame: how many steps are calculated for each frame
+            potential_size_factor: the potential is divided by this value to fit in the window
+    """
     fig,ax = plt.subplots()
-    line, = plt.plot([],[], label="$Wave \enspace function$")
+    line_wave_function, = plt.plot([],[], label="$Wave \enspace function$")
     plt.xlim(-xMax,xMax)
     plt.ylim(-0.01,0.5)
     
+    Vx = V(gS.x)
+    Vx /= potential_size_factor
+    line_effective_potential, = plt.plot(gS.x, Vx, label="$Potential \enspace V$")
+    
+    line_effective_potential, = plt.plot([],[], label="$Effective \enspace potential \enspace Veff$")
+    
+    
     def make_frame(k):
         gS.renorm()
-        line.set_data(gS.x, np.abs(gS.U)**2)
+        line_wave_function.set_data(gS.x, np.abs(gS.U)**2)
+        
+        
+        Veff_current = (np.vectorize(Veff))(gS.x, gS.U)
+        Veff_current /= potential_size_factor
+        line_effective_potential.set_data(gS.x, Veff_current)
+        
+        
         #print(k)
-        wave_function = np.abs(gS.U)**2
+        #wave_function = np.abs(gS.U)**2
         #ax.set_title("{:1.1e}".format(max(wave_function)))
-        gS.step()
-        return line,
+        
+        for i in range(number_of_steps_per_frame):
+            gS.renorm()
+            gS.step()
+        return line_wave_function,
         
         
-    Vx = V(gS.x)
-    Vx /= 100
-    plt.plot(gS.x, Vx, label="$Potential \enspace V$")
+    
     
     E_n, psi_n = harmonic_state(0)
-    plt.plot(gS.x,np.abs(psi_n)**2, label="$Analytical \enspace solution$")
+    plt.plot(gS.x,np.abs(psi_n)**2, label="$Analytical \enspace solution \enspace level \enspace 0$")
     E_n, psi_n = harmonic_state(1)
-    plt.plot(gS.x,np.abs(psi_n)**2, label="$Analytical \enspace solution$")
+    plt.plot(gS.x,np.abs(psi_n)**2, label="$Analytical \enspace solution \enspace level \enspace 1$")
     
     
-    ani = animation.FuncAnimation(fig, make_frame, interval = 1, blit=False)
+    ani = animation.FuncAnimation(fig, make_frame, interval = 20, blit=False)
     
     plt.title("$Evolution \enspace process \enspace to \enspace get \enspace the \enspace background \enspace state$")
     plt.legend()
@@ -197,16 +220,18 @@ def get_energy(psi):
 ## Evolution
 
 #Animation of the evolution
-#evolution_to_ground_anim()
+evolution_to_ground_anim(10,10)
 
 
 #Check with the ground state of the harmonic oscillator
+"""
 n = 0
 E_theo, psi = harmonic_state(n)
 E_calc,H_psi = get_energy(psi)
 
-plt.plot(gS.x,np.abs(psi)**2)
-plt.plot(gS.x,[E_theo]*J)
-plt.plot(gS.x,np.abs(H_psi)**2)
-plt.plot(gS.x,[E_calc]*J)
+plt.plot(gS.x,np.abs(psi)**2,label="harmonic eigen state")
+plt.plot(gS.x,[E_theo]*J,label="theoretical energy")
+plt.plot(gS.x,[E_calc]*J,label="calculated energy")
+plt.legend()
 plt.show()
+"""
