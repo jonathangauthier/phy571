@@ -7,7 +7,7 @@ import scipy.optimize as opt
 import math
 from  scipy.misc import derivative as der
 
-src = "C:\\Users\\Maxime\\Documents\\phy571_project"
+src = "C:\\Users\\Maxime\\Documents\\phy571_project\\"
 
 
 ## Definition of the Algorithm
@@ -98,7 +98,7 @@ hbar = 1
 m = 1
 D = 1j*hbar/(2*m)
 w = 0.1 #paramater of harmonic oscillator
-Ng = 100*0.05/10
+Ng = +2500*0.05/10
 a=-1j #imaginary time
 
 
@@ -111,7 +111,6 @@ def Veff(x,u):
     return V(x)+ Ng*np.abs(u)**2
     
 def f(x,u):
-    #return 1/(1j*hbar)*(V(x))*u
     return 1/(1j*hbar)*Veff(x,u)*u
 
 def u0(x):
@@ -182,9 +181,7 @@ def evolution_to_ground_anim(number_of_steps_per_frame, potential_size_factor=50
         line_effective_potential.set_data(gS.x, Veff_current)
         
         
-        #print(k)
-        #wave_function = np.abs(gS.U)**2
-        #ax.set_title("{:1.1e}".format(max(wave_function)))
+        ax.set_title("{:1.1e}".format(np.sum((np.abs(gS.oldU-gS.U))**2)))
         
         for i in range(number_of_steps_per_frame):
             gS.renorm()
@@ -202,12 +199,12 @@ def evolution_to_ground_anim(number_of_steps_per_frame, potential_size_factor=50
     
     ani = animation.FuncAnimation(fig, make_frame, interval = 20, blit=False)
     
-    plt.title("$Evolution \enspace process \enspace to \enspace get \enspace the \enspace background \enspace state$")
+    plt.title("$Evolution \enspace process \enspace to \enspace get \enspace the \enspace ground \enspace state$")
     plt.legend()
     plt.show()
 
 
-def get_energy(psi):
+def get_energy(f,psi):
     """Get the energy of a state, and give the result of the hamiltonian over the state"""
     #calculate laplacian product
     L_psi = np.zeros(J)
@@ -217,17 +214,108 @@ def get_energy(psi):
     return E,H_psi
 
 
+def get_ground(gS, threshold=1e-7):
+    gS.renorm()
+    gS.step()
+    while np.sum((np.abs(gS.oldU-gS.U))**2)>threshold:
+        gS.renorm()
+        gS.step()
+        gS.renorm()
+    return gS.U
+    
+    
+
+def get_energies(Ng_min,Ng_max,Ng_nbr=11):
+    Ng_array = np.linspace(Ng_min,Ng_max,Ng_nbr)
+    E_array = np.zeros_like(Ng_array)
+    for i, Ng in enumerate(Ng_array):
+        def V(x):
+            """Potential of the BEC"""
+            return 0.5*m*(w*x)**2
+            
+        def Veff(x,u):
+            """Effective potential of the BEC"""
+            return V(x)+ Ng*np.abs(u)**2
+            
+        def f(x,u):
+            return 1/(1j*hbar)*Veff(x,u)*u
+            
+        gS = groundState1DCN(-xMax,xMax,tauMax,J,N,D,f,u0)
+        
+        bkgd_wave_func = get_ground(gS)
+        E,H_psi = get_energy(f,bkgd_wave_func)
+        E_array[i] = E
+        print(i)
+        
+    np.savetxt(src+"E_array.txt",E_array)
+
+def get_standard_deviation(psi):
+    return (np.sum(np.conjugate(psi)*gS.x**2*psi)*gS.dx-(np.sum(np.conjugate(psi)*gS.x*psi)*gS.dx)**2)**0.5
+
+def get_standard_deviations(Ng_min,Ng_max,Ng_nbr=11):
+    Ng_array = np.linspace(Ng_min,Ng_max,Ng_nbr)
+    std_array = np.zeros_like(Ng_array)
+    for i, Ng in enumerate(Ng_array):
+        def V(x):
+            """Potential of the BEC"""
+            return 0.5*m*(w*x)**2
+            
+        def Veff(x,u):
+            """Effective potential of the BEC"""
+            return V(x)+ Ng*np.abs(u)**2
+            
+        def f(x,u):
+            return 1/(1j*hbar)*Veff(x,u)*u
+            
+        gS = groundState1DCN(-xMax,xMax,tauMax,J,N,D,f,u0)
+        
+        bkgd_wave_func = get_ground(gS)
+        std = get_standard_deviation(bkgd_wave_func)
+        std_array[i] = std
+        print(i)
+       
+    np.savetxt(src+"std_array.txt",std_array)
+
+
+def plot_energies(Ng_min,Ng_max,Ng_nbr=11):
+    Ng_array = np.linspace(Ng_min,Ng_max,Ng_nbr)
+    E_array = np.loadtxt(src+"E_array.txt",dtype=complex)
+    plt.plot(Ng_array,E_array,'.')
+    E_harm,_ = harmonic_state(0)
+    plt.hlines(E_harm,Ng_min,Ng_max,label="Without non linearity")
+    plt.xlabel("$Ng$")
+    plt.ylabel("$E$")
+    plt.title("$Ground \enspace state \enspace energies \enspace for \enspace different \enspace values \enspace of \enspace Ng$")
+    plt.legend(loc="lower right")
+    plt.show()
+    
+    
+def plot_standard_deviations(Ng_min,Ng_max,Ng_nbr=11):
+    Ng_array = np.linspace(Ng_min,Ng_max,Ng_nbr)
+    std_array = np.loadtxt(src+"std_array.txt",dtype=complex)
+    plt.plot(Ng_array,std_array,'.')
+    E_harm,psi_harm = harmonic_state(0)
+    plt.hlines(get_standard_deviation(psi_harm),Ng_min,Ng_max,label="Without non linearity")
+    plt.xlabel("$Ng$")
+    plt.ylabel("$\sigma$")
+    plt.title("$Ground \enspace state \enspace standard \enspace deviations \enspace for \enspace different \enspace values \enspace of \enspace Ng$")
+    plt.legend(loc="upper right")
+    plt.show()
+    
+    
 ## Evolution
 
 #Animation of the evolution
-evolution_to_ground_anim(10,10)
+"""
+evolution_to_ground_anim(20,10)
+"""
 
 
 #Check with the ground state of the harmonic oscillator
 """
 n = 0
 E_theo, psi = harmonic_state(n)
-E_calc,H_psi = get_energy(psi)
+E_calc,H_psi = get_energy(lambda x,u: 1/(1j*hbar)*V(x)*u,psi)
 
 plt.plot(gS.x,np.abs(psi)**2,label="harmonic eigen state")
 plt.plot(gS.x,[E_theo]*J,label="theoretical energy")
@@ -235,3 +323,30 @@ plt.plot(gS.x,[E_calc]*J,label="calculated energy")
 plt.legend()
 plt.show()
 """
+
+
+#save ground
+"""
+bkgd_wave_func = get_ground()
+np.savetxt(src+"bkgd_wave_func.txt",bkgd_wave_func)
+"""
+
+#load ground
+"""
+bkgd_wave_func = np.loadtxt(src+"bkgd_wave_func.txt",dtype=complex)
+plt.plot(np.abs(a)**2)
+plt.plot(np.abs(bkgd_wave_func)**2)
+plt.show()
+"""
+
+"""
+#get_energies(-2000*0.05/10,2000*0.05/10)
+plot_energies(-2000*0.05/10,2000*0.05/10)
+"""
+
+"""
+#get_standard_deviations(-2000*0.05/10,2000*0.05/10)
+plot_standard_deviations(-2000*0.05/10,2000*0.05/10)
+"""
+
+
