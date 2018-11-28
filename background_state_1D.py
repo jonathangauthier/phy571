@@ -6,6 +6,8 @@ from scipy.sparse import diags
 import scipy.optimize as opt
 import math
 from  scipy.misc import derivative as der
+import os.path
+
 
 src = "C:\\Users\\Maxime\\Documents\\phy571_project\\"
 
@@ -15,8 +17,8 @@ src = "C:\\Users\\Maxime\\Documents\\phy571_project\\"
 class groundState1DCN:
     """Find the ground state of the Gross-Pitaevski equation for a 1D problem via Crank-Nicholson"""
     
-    def __init__(self,xMin,xMax, tauMax, J, N, D, f, u0, a=-1j):
-        """Equation: du/dt = D*d2u/dx2 + f(x,u)
+    def __init__(self,xMin,xMax, tauMax, J, N, D, pot, u0, a=-1j):
+        """Equation: du/dt = D*d2u/dx2 + pot.f(x,u)
                 x in [xMin,xMax]
                 t in [0,-1j*tauMax]
                 J spatial points
@@ -31,8 +33,9 @@ class groundState1DCN:
         self.J = J
         self.N = N
         self.D = D
-        self.f = f
+        self.pot = pot
         self.u0 = u0
+        self.a = a
         
         #definition of the grid
         self.x, self.dx = np.linspace(xMin,xMax, J, retstep=True)
@@ -62,20 +65,48 @@ class groundState1DCN:
         diagonals = [dia, diaUp, diaDown]
         self.B = np.array(diags(diagonals, [0, 1, -1]).toarray(),dtype=complex)
         
-        #defintion of the initial condition
+        #definition of the initial condition
         self.U = np.array((np.vectorize(u0))(self.x),dtype=complex)
         self.oldU = np.zeros_like(self.U, dtype=complex)
         self.isFirstStep = True
+    
+    def change_a(self,a):
+        self.a = a
+        
+        self.dt = a*self.dtau
+        self.sigma = D*self.dt/(2*self.dx**2)
+        
+        #redefinition of the matrix A
+        A = np.zeros((3,J),dtype=complex)
+        A[0,1] = 0
+        A[0,2:] = -self.sigma
+        A[1,:] = 1+2*self.sigma
+        A[1,0] = 1
+        A[1,-1] = 1
+        A[2,:-2] = -self.sigma
+        A[2,-2] = 0
+        self.A = A
+        
+        #redefinition of the matrix B
+        diaUp = [self.sigma]*(self.J-1)
+        diaUp[0] = 0
+        diaDown = [self.sigma]*(self.J-1)
+        diaDown[J-2] = 0
+        dia = [1-2*self.sigma]*self.J
+        dia[0] = 1
+        dia[-1] = 1
+        diagonals = [dia, diaUp, diaDown]
+        self.B = np.array(diags(diagonals, [0, 1, -1]).toarray(),dtype=complex)
         
     def step(self):
         """Calculate the next step in the Crank-Nicholson algorithm"""
         #for the first step, we calculate only with the previous state
         if self.isFirstStep:
-            F = (np.vectorize(self.f))(self.x, self.U)
+            F = (np.vectorize(self.pot.f))(self.x, self.U)
             self.isFirstStep = False
         #else, we calculate with the previous step and the one before to keep the second order accuracy
         else:
-            F = 3/2*(np.vectorize(self.f))(self.x, self.U)-1/2*(np.vectorize(self.f))(self.x, self.oldU)
+            F = 3/2*(np.vectorize(self.pot.f))(self.x, self.U)-1/2*(np.vectorize(self.pot.f))(self.x, self.oldU)
         self.oldU = np.copy(self.U)
         C = np.dot(self.B,self.U)+self.dt*F
         C[0] = 0
@@ -86,6 +117,31 @@ class groundState1DCN:
         """Renormalize the current solution"""
         self.U /= (np.sum(np.abs(self.U)**2)*self.dx)**0.5
         
+
+
+class Potential:
+    """Specific class to define potential and its parameters"""
+    
+    def __init__(self,w,Ng,m=1,hbar=1):
+        self.w = w
+        self.Ng = Ng
+        self.m = 1
+        self.hbar = 1
+        
+        def V(x):
+            """Potential of the BEC"""
+            return 0.5*self.m*(self.w*x)**2
+            
+        def Veff(x,u):
+            """Effective potential of the BEC"""
+            return V(x)+ self.Ng*np.abs(u)**2
+            
+        def f(x,u):
+            return 1/(1j*self.hbar)*Veff(x,u)*u
+          
+        self.V = V
+        self.Veff = Veff    
+        self.f = f
      
 
 ## Definition of the problem
@@ -102,22 +158,13 @@ Ng = +2500*0.05/10
 a=-1j #imaginary time
 
 
-def V(x):
-    """Potential of the BEC"""
-    return 0.5*m*(w*x)**2
-    
-def Veff(x,u):
-    """Effective potential of the BEC"""
-    return V(x)+ Ng*np.abs(u)**2
-    
-def f(x,u):
-    return 1/(1j*hbar)*Veff(x,u)*u
+pot = Potential(w,Ng)
 
 def u0(x):
     """initial state"""
     return np.exp(-10*(x)**2)
     
-gS = groundState1DCN(-xMax,xMax,tauMax,J,N,D,f,u0)
+gS = groundState1DCN(-xMax,xMax,tauMax,J,N,D,pot,u0)
 
 
 ## Definition of the useful functions
@@ -142,7 +189,7 @@ def save_simulation():
         gS.renorm()
         gS.step()
         
-    np.savetxt(src+"bgFunc.txt",gS.U)
+    np.savetxt(src+"data\\"+"bgFunc.txt",gS.U)
 
 
 def evolution_to_ground_static():
@@ -154,8 +201,8 @@ def evolution_to_ground_static():
     plt.show()
 
 
-def evolution_to_ground_anim(number_of_steps_per_frame, potential_size_factor=50):
-    """Print the evolution of the BEC
+def evolution_anim(number_of_steps_per_frame, potential_size_factor=50,a=-1j,isRenormed=True):
+    """Print the imaginary time evolution of the BEC to the ground state
             number_of_steps_per_frame: how many steps are calculated for each frame
             potential_size_factor: the potential is divided by this value to fit in the window
     """
@@ -164,7 +211,9 @@ def evolution_to_ground_anim(number_of_steps_per_frame, potential_size_factor=50
     plt.xlim(-xMax,xMax)
     plt.ylim(-0.01,0.5)
     
-    Vx = V(gS.x)
+    gS.change_a(a)
+    
+    Vx = gS.pot.V(gS.x)
     Vx /= potential_size_factor
     line_effective_potential, = plt.plot(gS.x, Vx, label="$Potential \enspace V$")
     
@@ -172,11 +221,12 @@ def evolution_to_ground_anim(number_of_steps_per_frame, potential_size_factor=50
     
     
     def make_frame(k):
-        gS.renorm()
+        if isRenormed:
+            gS.renorm()
         line_wave_function.set_data(gS.x, np.abs(gS.U)**2)
         
         
-        Veff_current = (np.vectorize(Veff))(gS.x, gS.U)
+        Veff_current = (np.vectorize(gS.pot.Veff))(gS.x, gS.U)
         Veff_current /= potential_size_factor
         line_effective_potential.set_data(gS.x, Veff_current)
         
@@ -184,18 +234,14 @@ def evolution_to_ground_anim(number_of_steps_per_frame, potential_size_factor=50
         ax.set_title("{:1.1e}".format(np.sum((np.abs(gS.oldU-gS.U))**2)))
         
         for i in range(number_of_steps_per_frame):
-            gS.renorm()
+            if isRenormed:
+                gS.renorm()
             gS.step()
         return line_wave_function,
         
-        
-    
     
     E_n, psi_n = harmonic_state(0)
     plt.plot(gS.x,np.abs(psi_n)**2, label="$Analytical \enspace solution \enspace level \enspace 0$")
-    E_n, psi_n = harmonic_state(1)
-    plt.plot(gS.x,np.abs(psi_n)**2, label="$Analytical \enspace solution \enspace level \enspace 1$")
-    
     
     ani = animation.FuncAnimation(fig, make_frame, interval = 20, blit=False)
     
@@ -247,7 +293,7 @@ def get_energies(Ng_min,Ng_max,Ng_nbr=11):
         E_array[i] = E
         print(i)
         
-    np.savetxt(src+"E_array.txt",E_array)
+    np.savetxt(src+"data\\"+"E_array.txt",E_array)
 
 def get_standard_deviation(psi):
     return (np.sum(np.conjugate(psi)*gS.x**2*psi)*gS.dx-(np.sum(np.conjugate(psi)*gS.x*psi)*gS.dx)**2)**0.5
@@ -274,12 +320,12 @@ def get_standard_deviations(Ng_min,Ng_max,Ng_nbr=11):
         std_array[i] = std
         print(i)
        
-    np.savetxt(src+"std_array.txt",std_array)
+    np.savetxt(src+"data\\"+"std_array.txt",std_array)
 
 
 def plot_energies(Ng_min,Ng_max,Ng_nbr=11):
     Ng_array = np.linspace(Ng_min,Ng_max,Ng_nbr)
-    E_array = np.loadtxt(src+"E_array.txt",dtype=complex)
+    E_array = np.loadtxt(src+"data\\"+"E_array.txt",dtype=complex)
     plt.plot(Ng_array,E_array,'.')
     E_harm,_ = harmonic_state(0)
     plt.hlines(E_harm,Ng_min,Ng_max,label="Without non linearity")
@@ -292,7 +338,7 @@ def plot_energies(Ng_min,Ng_max,Ng_nbr=11):
     
 def plot_standard_deviations(Ng_min,Ng_max,Ng_nbr=11):
     Ng_array = np.linspace(Ng_min,Ng_max,Ng_nbr)
-    std_array = np.loadtxt(src+"std_array.txt",dtype=complex)
+    std_array = np.loadtxt(src+"data\\"+"std_array.txt",dtype=complex)
     plt.plot(Ng_array,std_array,'.')
     E_harm,psi_harm = harmonic_state(0)
     plt.hlines(get_standard_deviation(psi_harm),Ng_min,Ng_max,label="Without non linearity")
@@ -302,13 +348,30 @@ def plot_standard_deviations(Ng_min,Ng_max,Ng_nbr=11):
     plt.legend(loc="upper right")
     plt.show()
     
+
+def save_ground(gS,overwrite=False):
+    name_func = "grd_state_"+str(int(gS.xMax))+"_"+str(int(gS.tauMax))+"_"+str(int(gS.J))+"_"+str(int(gS.N))+\
+                "_"+"{:1.1e}".format(gS.pot.w)+"_"+str(int(200*gS.pot.Ng))
+                
+    if overwrite or not os.path.isfile(src+"data\\"+name_func):
+        grd_wave_func = get_ground(gS)
+        np.savetxt(src+"data\\"+name_func,grd_wave_func)
+
+
+def load_ground(gS):
+    name_func = "grd_state_"+str(int(gS.xMax))+"_"+str(int(gS.tauMax))+"_"+str(int(gS.J))+"_"+str(int(gS.N))+\
+                "_"+"{:1.1e}".format(gS.pot.w)+"_"+str(int(200*gS.pot.Ng))
+    gS.U = np.loadtxt(src+"data\\"+name_func,dtype=complex)
+    
+    
+
     
 ## Evolution
 
 #Animation of the evolution
-"""
-evolution_to_ground_anim(20,10)
-"""
+
+evolution_anim(20,10,a=-1j,isRenormed=True)
+
 
 
 #Check with the ground state of the harmonic oscillator
@@ -328,12 +391,12 @@ plt.show()
 #save ground
 """
 bkgd_wave_func = get_ground()
-np.savetxt(src+"bkgd_wave_func.txt",bkgd_wave_func)
+np.savetxt(src+"data\\"+"bkgd_wave_func.txt",bkgd_wave_func)
 """
 
 #load ground
 """
-bkgd_wave_func = np.loadtxt(src+"bkgd_wave_func.txt",dtype=complex)
+bkgd_wave_func = np.loadtxt(src+"data\\"+"bkgd_wave_func.txt",dtype=complex)
 plt.plot(np.abs(a)**2)
 plt.plot(np.abs(bkgd_wave_func)**2)
 plt.show()
@@ -349,4 +412,16 @@ plot_energies(-2000*0.05/10,2000*0.05/10)
 plot_standard_deviations(-2000*0.05/10,2000*0.05/10)
 """
 
+"""
+save_ground(gS)
+load_ground(gS)
+
+grd_wave_func = gS.U
+
+
+plt.plot(gS.x,np.abs(grd_wave_func)**2)
+plt.show()
+"""
+
+#evolution_anim(20,10,a=1,isRenormed=False)
 
