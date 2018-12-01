@@ -277,18 +277,22 @@ def evolution_anim(number_of_steps_per_frame, potential_size_factor=50,a=-1j,isR
     gS.change_a(a)
     
     fig,ax = plt.subplots()
+    fig.set_size_inches(16/9*7,7)
     ax = fig.add_subplot(111, projection='3d')
     ax.set_xlim3d(gS.xMin,gS.xMax)
     ax.set_ylim3d(gS.yMin,gS.yMax)
     ax.set_zlim3d(-0.01,0.1)
     
-    
+    """
     surf_wave_function = ax.plot_surface(gS.X,gS.Y,np.zeros_like(gS.X), label="$Wave \enspace function$",color=(0,0,0.5,0.5))
     surf_potential = ax.plot_surface(gS.X,gS.Y,gS.pot.V(gS.X,gS.Y)/potential_size_factor,label="$Potential \enspace V$",color=(0.5,0,0,0.5))
     #surf_effective_potential = ax.plot_surface(gS.X,gS.Y,np.zeros_like(gS.X),label="$Effective \enspace potential \enspace Veff$")
+    """
     
+    surf_wave_function = ax.contour3D(gS.X, gS.Y, np.abs(gS.U)**2, 50, cmap='binary')
     
     E, psi = harmonic_state_2D(0,0)
+    psi /= (np.sum(np.abs(psi)**2)*gS.dx*gS.dy)**0.5
     
     def make_frame(k):
         if isRenormed:
@@ -297,15 +301,24 @@ def evolution_anim(number_of_steps_per_frame, potential_size_factor=50,a=-1j,isR
         Veff_current = (np.vectorize(gS.pot.Veff))(gS.X,gS.Y, gS.U)
         Veff_current /= potential_size_factor
             
-        ax.clear()    
+        ax.clear()
+        
+        """
         surf_wave_function = ax.plot_surface(gS.X,gS.Y,np.abs(gS.U)**2, label="$Wave \enspace function$",color=(0,0,0.5,0.5))
         ax.plot_surface(gS.X,gS.Y,np.abs(psi)**2,rstride=1,label="$Analytical \enspace solution \enspace level \enspace 0$",color=(0,0.5,0,0.5))
         surf_potential = ax.plot_surface(gS.X,gS.Y,gS.pot.V(gS.X,gS.Y)/potential_size_factor,label="$Potential \enspace V$",color=(0.5,0,0,0.5))
         #surf_effective_potential = ax.plot_surface(gS.X,gS.Y,Veff_current,label="$Effective \enspace potential \enspace Veff$")
+        """ 
+
+        
+        surf_wave_function = ax.contour3D(gS.X, gS.Y, np.abs(gS.U)**2, 10, cmap='Blues')
+        ax.contour3D(gS.X,gS.Y,np.abs(psi)**2,10,label="$Analytical \enspace solution \enspace level \enspace 0$",cmap='Reds')
+        
+        
         ax.set_title("{:1.1e}".format(np.sum((np.abs(gS.oldU-gS.U))**2)))
         ax.set_xlim3d(gS.xMin,gS.xMax)
         ax.set_ylim3d(gS.yMin,gS.yMax)
-        ax.set_zlim3d(-0.01,0.1)    
+        ax.set_zlim3d(-0.01,0.1)
             
         for i in range(number_of_steps_per_frame):
             if isRenormed:
@@ -313,9 +326,19 @@ def evolution_anim(number_of_steps_per_frame, potential_size_factor=50,a=-1j,isR
             gS.step()
 
         return surf_wave_function,
-        
     
-    ani = animation.FuncAnimation(fig, make_frame, interval = 20, blit=False)
+    
+    
+        
+    ani = animation.FuncAnimation(fig, make_frame, frames = 70, interval = 500, blit=False)
+
+    """
+    Writer = animation.writers['ffmpeg']
+    writer = Writer(fps=10, metadata=dict(artist='Me'), bitrate=7200)
+    manager = plt.get_current_fig_manager()
+    manager.full_screen_toggle()
+    ani.save(src+'CN2D.mp4', writer=writer)
+    """
     
     plt.title("$Evolution \enspace process \enspace to \enspace get \enspace the \enspace ground \enspace state$")
     #plt.legend()
