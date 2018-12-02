@@ -9,7 +9,6 @@ from  scipy.misc import derivative as der
 import os.path
 from mpl_toolkits import mplot3d
 
-
 src = "C:\\Users\\Maxime\\Documents\\phy571_project\\"
 os.chdir(src)
 #from background_state_1D import groundState1DCN
@@ -21,14 +20,13 @@ os.chdir(src)
 class groundState2DCN:
     """Find the ground state of the Gross-Pitaevski equation for a 2D problem via Crank-Nicholson"""
     
-    def __init__(self,xMin,xMax, yMin,yMax, tauMax, Jx, Jy, N, D, pot, u0, a=-1j):
+    def __init__(self,xMin,xMax, yMin,yMax, dtau, Jx, Jy, D, pot, u0, a=-1j):
         """Equation: du/dt = D*(d2u/dx2+d2/dy2) + pot.f(x,u)
                 x in [xMin,xMax]
                 y in [yMin, yMax]
-                t in [0,-1j*tauMax]
+                dtau: temporal step (dt = a*dtau)
                 Jx spatial points in x
                 Jy spatial points in y
-                N temporal points
                 u(x,y,0) = u0(x,y)
            Evolve in imaginary time for a=-1j and in real time for a=1
         """
@@ -37,10 +35,9 @@ class groundState2DCN:
         self.xMax = xMax
         self.yMin = yMin
         self.yMax = yMax
-        self.tauMax = tauMax
+        self.dtau = dtau
         self.Jx = Jx
         self.Jy = Jy
-        self.N = N
         self.D = D
         self.pot = pot
         self.u0 = u0
@@ -50,7 +47,6 @@ class groundState2DCN:
         self.x, self.dx = np.linspace(xMin,xMax, Jx, retstep=True)
         self.y, self.dy = np.linspace(yMin,yMax, Jy, retstep=True)
         self.X, self.Y = np.meshgrid(self.x,self.y)
-        self.tau, self.dtau = np.linspace(0,tauMax, N, retstep=True)
         self.dt = a*self.dtau
         self.sigma_x = D*self.dt/(2*self.dx**2)
         self.sigma_y = D*self.dt/(2*self.dy**2)
@@ -198,7 +194,7 @@ class Potential:
             
         def Veff(x,y,u):
             """Effective potential of the BEC"""
-            return V(x,y)+ 0*self.Ng*np.abs(u)**2
+            return V(x,y)+ self.Ng*np.abs(u)**2
             
         def f(x,y,u):
             return 1/(1j*self.hbar)*Veff(x,y,u)*u
@@ -211,14 +207,13 @@ class Potential:
 ## Definition of the problem
 
 xMax = 10
-tauMax = 10
+dtau = 0.1
 J = 50 #number of spatial points
-N = 400 #number of temporal points
 hbar = 1
 m = 1
 D = 1j*hbar/(2*m)
 w = 0.1 #paramater of harmonic oscillator
-Ng = +1000*0.05/10
+Ng = 1000*0.05/10
 a=-1j #imaginary time
 
 
@@ -226,9 +221,10 @@ pot = Potential(w,w,Ng)
 
 def u0(x,y):
     """initial state"""
-    return np.exp(-10*(x**2+y**2))
+    alpha = m*w/hbar
+    return (alpha/np.pi)**0.5*np.exp(-alpha*(x**2+y**2)/2)
     
-gS = groundState2DCN(-xMax,xMax,-xMax,xMax,tauMax,J,J,N,D,pot,u0)
+gS = groundState2DCN(-xMax,xMax,-xMax,xMax,dtau,J,J,D,pot,u0)
 
 
 ## Definition of the useful functions
@@ -252,24 +248,7 @@ def harmonic_state_2D(nx,ny):
     return E, psi
 
 
-def save_simulation():
-    for k in range(50):
-        gS.renorm()
-        gS.step()
-        
-    np.savetxt(src+"data\\"+"bgFunc.txt",gS.U)
-
-
-def evolution_to_ground_static():
-    for k in range(N):
-        gS.renorm()
-        plt.plot(gS.x, gS.U)
-        gS.step()
-        
-    plt.show()
-
-
-def evolution_anim(number_of_steps_per_frame, potential_size_factor=50,a=-1j,isRenormed=True):
+def evolution_anim(number_of_steps_per_frame, potential_size_factor=50,a=-1j,isRenormed=True,shape='contours',saveMP4=False):
     """Print the imaginary time evolution of the BEC to the ground state
             number_of_steps_per_frame: how many steps are calculated for each frame
             potential_size_factor: the potential is divided by this value to fit in the window
@@ -279,20 +258,11 @@ def evolution_anim(number_of_steps_per_frame, potential_size_factor=50,a=-1j,isR
     fig,ax = plt.subplots()
     fig.set_size_inches(16/9*7,7)
     ax = fig.add_subplot(111, projection='3d')
-    ax.set_xlim3d(gS.xMin,gS.xMax)
-    ax.set_ylim3d(gS.yMin,gS.yMax)
-    ax.set_zlim3d(-0.01,0.1)
     
-    """
-    surf_wave_function = ax.plot_surface(gS.X,gS.Y,np.zeros_like(gS.X), label="$Wave \enspace function$",color=(0,0,0.5,0.5))
-    surf_potential = ax.plot_surface(gS.X,gS.Y,gS.pot.V(gS.X,gS.Y)/potential_size_factor,label="$Potential \enspace V$",color=(0.5,0,0,0.5))
-    #surf_effective_potential = ax.plot_surface(gS.X,gS.Y,np.zeros_like(gS.X),label="$Effective \enspace potential \enspace Veff$")
-    """
-    
-    surf_wave_function = ax.contour3D(gS.X, gS.Y, np.abs(gS.U)**2, 50, cmap='binary')
+    if shape=='surface':
+        ax.view_init(azim=45, elev=-5)
     
     E, psi = harmonic_state_2D(0,0)
-    psi /= (np.sum(np.abs(psi)**2)*gS.dx*gS.dy)**0.5
     
     def make_frame(k):
         if isRenormed:
@@ -300,21 +270,18 @@ def evolution_anim(number_of_steps_per_frame, potential_size_factor=50,a=-1j,isR
         
         Veff_current = (np.vectorize(gS.pot.Veff))(gS.X,gS.Y, gS.U)
         Veff_current /= potential_size_factor
-            
+         
         ax.clear()
         
-        """
-        surf_wave_function = ax.plot_surface(gS.X,gS.Y,np.abs(gS.U)**2, label="$Wave \enspace function$",color=(0,0,0.5,0.5))
-        ax.plot_surface(gS.X,gS.Y,np.abs(psi)**2,rstride=1,label="$Analytical \enspace solution \enspace level \enspace 0$",color=(0,0.5,0,0.5))
-        surf_potential = ax.plot_surface(gS.X,gS.Y,gS.pot.V(gS.X,gS.Y)/potential_size_factor,label="$Potential \enspace V$",color=(0.5,0,0,0.5))
-        #surf_effective_potential = ax.plot_surface(gS.X,gS.Y,Veff_current,label="$Effective \enspace potential \enspace Veff$")
-        """ 
+        if shape == 'surface':
+            wave_function = ax.plot_surface(gS.X,gS.Y,np.abs(gS.U)**2, label="$Wave \enspace function$",cmap='winter',alpha=0.6)
+            analytical = ax.plot_surface(gS.X,gS.Y,np.abs(psi)**2,rstride=1,label="$Analytical \enspace solution \enspace level \enspace 0$",cmap='autumn',alpha=0.6)
+            #potential = ax.plot_surface(gS.X,gS.Y,gS.pot.V(gS.X,gS.Y)/potential_size_factor,label="$Potential \enspace V$",color=(0.5,0,0,0.5))
+            #effective_potential = ax.plot_surface(gS.X,gS.Y,Veff_current,label="$Effective \enspace potential \enspace Veff$")
+        elif shape == 'contours':
+            wave_function = ax.contour3D(gS.X, gS.Y, np.abs(gS.U)**2, 10, cmap='Blues')
+            analytical = ax.contour3D(gS.X,gS.Y,np.abs(psi)**2,10,label="$Analytical \enspace solution \enspace level \enspace 0$",cmap='Reds')
 
-        
-        surf_wave_function = ax.contour3D(gS.X, gS.Y, np.abs(gS.U)**2, 10, cmap='Blues')
-        ax.contour3D(gS.X,gS.Y,np.abs(psi)**2,10,label="$Analytical \enspace solution \enspace level \enspace 0$",cmap='Reds')
-        
-        
         ax.set_title("{:1.1e}".format(np.sum((np.abs(gS.oldU-gS.U))**2)))
         ax.set_xlim3d(gS.xMin,gS.xMax)
         ax.set_ylim3d(gS.yMin,gS.yMax)
@@ -325,24 +292,21 @@ def evolution_anim(number_of_steps_per_frame, potential_size_factor=50,a=-1j,isR
                 gS.renorm()
             gS.step()
 
-        return surf_wave_function,
+        return wave_function,
     
-    
-    
-        
-    ani = animation.FuncAnimation(fig, make_frame, frames = 70, interval = 500, blit=False)
 
-    """
-    Writer = animation.writers['ffmpeg']
-    writer = Writer(fps=10, metadata=dict(artist='Me'), bitrate=7200)
-    manager = plt.get_current_fig_manager()
-    manager.full_screen_toggle()
-    ani.save(src+'CN2D.mp4', writer=writer)
-    """
-    
-    plt.title("$Evolution \enspace process \enspace to \enspace get \enspace the \enspace ground \enspace state$")
-    #plt.legend()
-    plt.show()
+    ani = animation.FuncAnimation(fig, make_frame, frames = 70, interval = 20, blit=False)
+
+    if saveMP4:
+        Writer = animation.writers['ffmpeg']
+        writer = Writer(fps=10, metadata=dict(artist='Me'), bitrate=7200)
+        manager = plt.get_current_fig_manager()
+        manager.full_screen_toggle()
+        ani.save(src+'CN2D.mp4', writer=writer)
+    else:
+        plt.title("$Evolution \enspace process \enspace to \enspace get \enspace the \enspace ground \enspace state$")
+        #plt.legend()
+        plt.show()
 
 
 def get_energy(f,psi):
@@ -383,7 +347,7 @@ def get_energies(Ng_min,Ng_max,Ng_nbr=11):
         def f(x,u):
             return 1/(1j*hbar)*Veff(x,u)*u
             
-        gS = groundState1DCN(-xMax,xMax,tauMax,J,N,D,f,u0)
+        gS = groundState1DCN(-xMax,xMax,dtau,J,D,f,u0)
         
         bkgd_wave_func = get_ground(gS)
         E,H_psi = get_energy(f,bkgd_wave_func)
@@ -467,7 +431,7 @@ def load_ground(gS):
 
 #Animation of the evolution
 
-evolution_anim(20,10,a=-1j,isRenormed=True)
+evolution_anim(20,10,a=-1j,isRenormed=True,shape='surface')
 
 
 
