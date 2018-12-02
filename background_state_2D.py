@@ -19,7 +19,7 @@ os.chdir(src)
 ## Definition of the Algorithm
 
 class groundState2DCN:
-    """Find the ground state of the Gross-Pitaevski equation for a 1D problem via Crank-Nicholson"""
+    """Find the ground state of the Gross-Pitaevski equation for a 2D problem via Crank-Nicholson"""
     
     def __init__(self,xMin,xMax, yMin,yMax, tauMax, Jx, Jy, N, D, pot, u0, a=-1j):
         """Equation: du/dt = D*(d2u/dx2+d2/dy2) + pot.f(x,u)
@@ -210,7 +210,7 @@ class Potential:
 
 ## Definition of the problem
 
-xMax = 5
+xMax = 10
 tauMax = 10
 J = 50 #number of spatial points
 N = 400 #number of temporal points
@@ -348,10 +348,12 @@ def evolution_anim(number_of_steps_per_frame, potential_size_factor=50,a=-1j,isR
 def get_energy(f,psi):
     """Get the energy of a state, and give the result of the hamiltonian over the state"""
     #calculate laplacian product
-    L_psi = np.zeros(J)
-    L_psi[1:-1] = (psi[0:-2]+psi[2:]-2*psi[1:-1])/(gS.dx**2)
-    H_psi =-(hbar)**2/(2*m)*L_psi + 1j*hbar*np.vectorize(f)(gS.x,psi)
-    E = np.sum(np.conjugate(psi)*H_psi)*gS.dx
+    Lx_psi = np.zeros((gS.Jx,gS.Jy),dtype=complex)
+    Lx_psi[:,1:-1] = (psi[:,0:-2]+psi[:,2:]-2*psi[:,1:-1])/(gS.dx**2)
+    Ly_psi = np.zeros((gS.Jx,gS.Jy),dtype=complex)
+    Ly_psi[1:-1,:] = (psi[0:-2,:]+psi[2:,:]-2*psi[1:-1,:])/(gS.dx**2)
+    H_psi =-(hbar)**2/(2*m)*Lx_psi -(hbar)**2/(2*m)*Ly_psi + 1j*hbar*np.vectorize(f)(gS.X,gS.Y,psi)
+    E = np.sum(np.conjugate(psi)*H_psi)*gS.dx*gS.dy
     return E,H_psi
 
 
@@ -519,5 +521,3 @@ plt.show()
 """
 
 #evolution_anim(20,10,a=1,isRenormed=False)
-
-
