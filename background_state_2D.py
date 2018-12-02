@@ -207,8 +207,8 @@ class Potential:
 ## Definition of the problem
 
 xMax = 10
-dtau = 0.1
-J = 50 #number of spatial points
+dtau = 0.02
+J = 51 #number of spatial points
 hbar = 1
 m = 1
 D = 1j*hbar/(2*m)
@@ -248,7 +248,7 @@ def harmonic_state_2D(nx,ny):
     return E, psi
 
 
-def evolution_anim(number_of_steps_per_frame, potential_size_factor=50,a=-1j,isRenormed=True,shape='contours',saveMP4=False):
+def evolution_anim(number_of_steps_per_frame, potential_size_factor=50,a=-1j,isRenormed=True,shape='contours',saveMP4=False,plotAnalytical=True,vortex=False,xv=0,yv=0):
     """Print the imaginary time evolution of the BEC to the ground state
             number_of_steps_per_frame: how many steps are calculated for each frame
             potential_size_factor: the potential is divided by this value to fit in the window
@@ -258,11 +258,16 @@ def evolution_anim(number_of_steps_per_frame, potential_size_factor=50,a=-1j,isR
     fig,ax = plt.subplots()
     fig.set_size_inches(16/9*7,7)
     ax = fig.add_subplot(111, projection='3d')
+    opacity = 1
     
-    if shape=='surface':
+    if shape=='surface' and plotAnalytical:
         ax.view_init(azim=45, elev=-5)
+        opacity = 0.6
     
     E, psi = harmonic_state_2D(0,0)
+    
+    xv_coord = int((xv-gS.xMin)//gS.dx + ((xv-gS.xMin)%gS.dx>0.5))
+    yv_coord = int((yv-gS.yMin)//gS.dy + ((yv-gS.yMin)%gS.dy>0.5))
     
     def make_frame(k):
         if isRenormed:
@@ -274,13 +279,15 @@ def evolution_anim(number_of_steps_per_frame, potential_size_factor=50,a=-1j,isR
         ax.clear()
         
         if shape == 'surface':
-            wave_function = ax.plot_surface(gS.X,gS.Y,np.abs(gS.U)**2, label="$Wave \enspace function$",cmap='winter',alpha=0.6)
-            analytical = ax.plot_surface(gS.X,gS.Y,np.abs(psi)**2,rstride=1,label="$Analytical \enspace solution \enspace level \enspace 0$",cmap='autumn',alpha=0.6)
+            wave_function = ax.plot_surface(gS.X,gS.Y,np.abs(gS.U)**2, label="$Wave \enspace function$",cmap='winter',alpha=opacity)
+            if plotAnalytical:
+                analytical = ax.plot_surface(gS.X,gS.Y,np.abs(psi)**2,rstride=1,label="$Analytical \enspace solution \enspace level \enspace 0$",cmap='autumn',alpha=0.6)
             #potential = ax.plot_surface(gS.X,gS.Y,gS.pot.V(gS.X,gS.Y)/potential_size_factor,label="$Potential \enspace V$",color=(0.5,0,0,0.5))
             #effective_potential = ax.plot_surface(gS.X,gS.Y,Veff_current,label="$Effective \enspace potential \enspace Veff$")
         elif shape == 'contours':
             wave_function = ax.contour3D(gS.X, gS.Y, np.abs(gS.U)**2, 10, cmap='Blues')
-            analytical = ax.contour3D(gS.X,gS.Y,np.abs(psi)**2,10,label="$Analytical \enspace solution \enspace level \enspace 0$",cmap='Reds')
+            if plotAnalytical:
+                analytical = ax.contour3D(gS.X,gS.Y,np.abs(psi)**2,10,label="$Analytical \enspace solution \enspace level \enspace 0$",cmap='Reds')
 
         ax.set_title("{:1.1e}".format(np.sum((np.abs(gS.oldU-gS.U))**2)))
         ax.set_xlim3d(gS.xMin,gS.xMax)
@@ -291,11 +298,13 @@ def evolution_anim(number_of_steps_per_frame, potential_size_factor=50,a=-1j,isR
             if isRenormed:
                 gS.renorm()
             gS.step()
+            if vortex:
+                gS.U[xv_coord,yv_coord]=0
 
         return wave_function,
     
 
-    ani = animation.FuncAnimation(fig, make_frame, frames = 70, interval = 20, blit=False)
+    ani = animation.FuncAnimation(fig, make_frame, frames = 70, interval = number_of_steps_per_frame*10, blit=False)
 
     if saveMP4:
         Writer = animation.writers['ffmpeg']
@@ -425,14 +434,12 @@ def load_ground(gS):
     gS.U = np.loadtxt(src+"data\\"+name_func,dtype=complex)
     
     
-
-    
 ## Evolution
 
 #Animation of the evolution
 
-evolution_anim(20,10,a=-1j,isRenormed=True,shape='surface')
-
+evolution_anim(10,10,a=-1j,isRenormed=True,shape='surface',plotAnalytical=False)
+#evolution_anim(10,10,a=1,isRenormed=False,shape='surface',plotAnalytical=False,vortex=True,xv=0,yv=0)
 
 
 #Check with the ground state of the harmonic oscillator
