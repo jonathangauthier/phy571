@@ -52,26 +52,26 @@ class groundState2DCN:
         self.sigma_y = D*self.dt/(2*self.dy**2)
         
         #definition of the matrix Ax
-        Ax = np.zeros((3,Jx),dtype=complex)
-        Ax[0,1] = 0
-        Ax[0,2:] = -self.sigma_x
-        Ax[1,:] = 1+2*self.sigma_x
-        Ax[1,0] = 1
-        Ax[1,-1] = 1
-        Ax[2,:-2] = -self.sigma_x
-        Ax[2,-2] = 0
-        self.Ax = Ax
+        diaUp = [-self.sigma_x]*(self.Jx-1)
+        diaUp[0] = 0
+        diaDown = [-self.sigma_x]*(self.Jx-1)
+        diaDown[Jx-2] = 0
+        dia = [1+2*self.sigma_x]*self.Jx
+        dia[0] = 1
+        dia[-1] = 1
+        diagonals = [dia, diaUp, diaDown]
+        self.Ax = np.array(diags(diagonals, [0, 1, -1]).toarray(),dtype=complex)
         
         #definition of the matrix Ay
-        Ay = np.zeros((3,Jy),dtype=complex)
-        Ay[0,1] = 0
-        Ay[0,2:] = -self.sigma_y
-        Ay[1,:] = 1+2*self.sigma_y
-        Ay[1,0] = 1
-        Ay[1,-1] = 1
-        Ay[2,:-2] = -self.sigma_y
-        Ay[2,-2] = 0
-        self.Ay = Ay
+        diaUp = [-self.sigma_y]*(self.Jy-1)
+        diaUp[0] = 0
+        diaDown = [-self.sigma_y]*(self.Jy-1)
+        diaDown[Jy-2] = 0
+        dia = [1+2*self.sigma_y]*self.Jy
+        dia[0] = 1
+        dia[-1] = 1
+        diagonals = [dia, diaUp, diaDown]
+        self.Ay = np.array(diags(diagonals, [0, 1, -1]).toarray(),dtype=complex)
         
         #definition of the matrix Bx
         diaUp = [self.sigma_x]*(self.Jx-1)
@@ -99,6 +99,10 @@ class groundState2DCN:
         self.U = np.array((np.vectorize(u0))(self.X,self.Y),dtype=complex)
         self.oldU = np.zeros_like(self.U, dtype=complex)
         self.isFirstStep = True
+        
+        #storage of Ax^-1 and Ay^-1
+        self.Ax_inv = lin.inv(self.Ax)
+        self.Ay_inv = lin.inv(self.Ay)
     
     def change_a(self,a):
         self.a = a
@@ -108,26 +112,26 @@ class groundState2DCN:
         self.sigma_y = D*self.dt/(2*self.dy**2)
         
         #redefinition of the matrix Ax
-        Ax = np.zeros((3,self.Jx),dtype=complex)
-        Ax[0,1] = 0
-        Ax[0,2:] = -self.sigma_x
-        Ax[1,:] = 1+2*self.sigma_x
-        Ax[1,0] = 1
-        Ax[1,-1] = 1
-        Ax[2,:-2] = -self.sigma_x
-        Ax[2,-2] = 0
-        self.Ax = Ax
+        diaUp = [-self.sigma_x]*(self.Jx-1)
+        diaUp[0] = 0
+        diaDown = [-self.sigma_x]*(self.Jx-1)
+        diaDown[self.Jx-2] = 0
+        dia = [1+2*self.sigma_x]*self.Jx
+        dia[0] = 1
+        dia[-1] = 1
+        diagonals = [dia, diaUp, diaDown]
+        self.Ax = np.array(diags(diagonals, [0, 1, -1]).toarray(),dtype=complex)
         
         #redefinition of the matrix Ay
-        Ay = np.zeros((3,self.Jy),dtype=complex)
-        Ay[0,1] = 0
-        Ay[0,2:] = -self.sigma_y
-        Ay[1,:] = 1+2*self.sigma_y
-        Ay[1,0] = 1
-        Ay[1,-1] = 1
-        Ay[2,:-2] = -self.sigma_y
-        Ay[2,-2] = 0
-        self.Ay = Ay
+        diaUp = [-self.sigma_y]*(self.Jy-1)
+        diaUp[0] = 0
+        diaDown = [-self.sigma_y]*(self.Jy-1)
+        diaDown[self.Jy-2] = 0
+        dia = [1+2*self.sigma_y]*self.Jy
+        dia[0] = 1
+        dia[-1] = 1
+        diagonals = [dia, diaUp, diaDown]
+        self.Ay = np.array(diags(diagonals, [0, 1, -1]).toarray(),dtype=complex)
         
         #redefinition of the matrix Bx
         diaUp = [self.sigma_x]*(self.Jx-1)
@@ -151,6 +155,10 @@ class groundState2DCN:
         diagonals = [dia, diaUp, diaDown]
         self.By = np.array(diags(diagonals, [0, 1, -1]).toarray(),dtype=complex)
         
+        #redefinition of Ax^-1 and Ay^-1
+        self.Ax_inv = lin.inv(self.Ax)
+        self.Ay_inv = lin.inv(self.Ay)
+        
     def step(self):
         """Calculate the next step in the Crank-Nicholson algorithm"""
         #for the first step, we calculate only with the previous state
@@ -165,12 +173,12 @@ class groundState2DCN:
         C = np.dot(self.Bx,self.U)+0.5*self.dt*F
         C[0,:] = 0
         C[-1,:] = 0
-        self.U = lin.solve_banded((1,1), self.Ax, C)
+        self.U = np.dot(self.Ax_inv,C)
         #Propagation in y
         C = np.dot(self.By,self.U.T)+0.5*self.dt*F
         C[0,:] = 0
         C[-1,:] = 0
-        self.U = lin.solve_banded((1,1), self.Ay, C).T
+        self.U = np.dot(self.Ay_inv,C).T
         
     def renorm(self,vortex=False):
         """Renormalize the current solution"""
@@ -308,7 +316,7 @@ def evolution_anim(number_of_steps_per_frame, potential_size_factor=50,a=-1j,isR
         return wave_function,
     
 
-    ani = animation.FuncAnimation(fig, make_frame, frames = 70, interval = number_of_steps_per_frame*10, blit=False)
+    ani = animation.FuncAnimation(fig, make_frame, frames = 70, interval = 20, blit=False)
 
     if saveMP4:
         Writer = animation.writers['ffmpeg']
@@ -442,8 +450,8 @@ def load_ground(gS):
 
 #Animation of the evolution
 
-evolution_anim(10,10,a=-1j,isRenormed=True,shape='surface',plotAnalytical=False,vortex=True)
-#evolution_anim(10,10,a=1,isRenormed=False,shape='surface',plotAnalytical=False,vortex=False)
+evolution_anim(20,10,a=-1j,isRenormed=True,shape='surface',plotAnalytical=False,vortex=True)
+#evolution_anim(20,10,a=1,isRenormed=False,shape='surface',plotAnalytical=False,vortex=False)
 
 #Check with the ground state of the harmonic oscillator
 """
