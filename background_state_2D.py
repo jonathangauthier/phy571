@@ -172,9 +172,11 @@ class groundState2DCN:
         C[-1,:] = 0
         self.U = lin.solve_banded((1,1), self.Ay, C).T
         
-    def renorm(self):
+    def renorm(self,vortex=False):
         """Renormalize the current solution"""
         self.U /= (np.sum(np.abs(self.U)**2)*self.dx*self.dy)**0.5
+        if vortex:
+            self.U = np.abs(self.U)*np.exp(1j*np.angle(self.X+1j*self.Y))
         
 
 
@@ -266,12 +268,14 @@ def evolution_anim(number_of_steps_per_frame, potential_size_factor=50,a=-1j,isR
     
     E, psi = harmonic_state_2D(0,0)
     
+    """
     xv_coord = int((xv-gS.xMin)//gS.dx + ((xv-gS.xMin)%gS.dx>0.5))+1
     yv_coord = int((yv-gS.yMin)//gS.dy + ((yv-gS.yMin)%gS.dy>0.5))+1
+    """
     
     def make_frame(k):
         if isRenormed:
-            gS.renorm()
+            gS.renorm(vortex)
         
         Veff_current = (np.vectorize(gS.pot.Veff))(gS.X,gS.Y, gS.U)
         Veff_current /= potential_size_factor
@@ -296,7 +300,7 @@ def evolution_anim(number_of_steps_per_frame, potential_size_factor=50,a=-1j,isR
             
         for i in range(number_of_steps_per_frame):
             if isRenormed:
-                gS.renorm()
+                gS.renorm(vortex)
             gS.step()
             if vortex:
                 gS.U[xv_coord,yv_coord]=0
@@ -438,8 +442,8 @@ def load_ground(gS):
 
 #Animation of the evolution
 
-evolution_anim(10,10,a=-1j,isRenormed=True,shape='surface',plotAnalytical=False)
-#evolution_anim(10,10,a=1,isRenormed=False,shape='surface',plotAnalytical=False,vortex=True,xv=0,yv=0)
+evolution_anim(10,10,a=-1j,isRenormed=True,shape='surface',plotAnalytical=False,vortex=True)
+#evolution_anim(10,10,a=1,isRenormed=False,shape='surface',plotAnalytical=False,vortex=False)
 
 #Check with the ground state of the harmonic oscillator
 """
