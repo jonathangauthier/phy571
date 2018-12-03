@@ -266,8 +266,8 @@ def evolution_anim(number_of_steps_per_frame, potential_size_factor=50,a=-1j,isR
     
     E, psi = harmonic_state_2D(0,0)
     
-    xv_coord = int((xv-gS.xMin)//gS.dx + ((xv-gS.xMin)%gS.dx>0.5))
-    yv_coord = int((yv-gS.yMin)//gS.dy + ((yv-gS.yMin)%gS.dy>0.5))
+    xv_coord = int((xv-gS.xMin)//gS.dx + ((xv-gS.xMin)%gS.dx>0.5))+1
+    yv_coord = int((yv-gS.yMin)//gS.dy + ((yv-gS.yMin)%gS.dy>0.5))+1
     
     def make_frame(k):
         if isRenormed:
@@ -292,7 +292,7 @@ def evolution_anim(number_of_steps_per_frame, potential_size_factor=50,a=-1j,isR
         ax.set_title("{:1.1e}".format(np.sum((np.abs(gS.oldU-gS.U))**2)))
         ax.set_xlim3d(gS.xMin,gS.xMax)
         ax.set_ylim3d(gS.yMin,gS.yMax)
-        ax.set_zlim3d(-0.01,0.1)
+        ax.set_zlim3d(-0.01,0.02)
             
         for i in range(number_of_steps_per_frame):
             if isRenormed:
@@ -440,7 +440,6 @@ def load_ground(gS):
 
 evolution_anim(10,10,a=-1j,isRenormed=True,shape='surface',plotAnalytical=False)
 #evolution_anim(10,10,a=1,isRenormed=False,shape='surface',plotAnalytical=False,vortex=True,xv=0,yv=0)
-
 
 #Check with the ground state of the harmonic oscillator
 """
