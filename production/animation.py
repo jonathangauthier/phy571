@@ -2,15 +2,18 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from matplotlib.colors import LogNorm
+import os
 
+src = 'C:/Users/Maxime/Documents/phy571_project/'
 
-def evolution_anim(gS,number_of_steps_per_frame,isRenormed=True,saveMP4=False,frames=100,vortex=False,xv=0,yv=0):
+os.chdir(src+'production/')
+import vortex
+
+def evolution_anim(gS,number_of_steps_per_frame,isRenormed=False,saveMP4=False,frames=100,vtx=None):
     """Print the evolution of the BEC
             number_of_steps_per_frame: how many steps are calculated for each frame
             isRenormed: normalise the wave function at each step
             saveMP4: save the animation in a mp4 file with a number 'frames' of frames
-            vortex: add vortex or not
-            xv,yv: coordinates of the vortex center
     """
     fig,_ = plt.subplots()
     ax1 = fig.add_subplot(121)
@@ -21,11 +24,11 @@ def evolution_anim(gS,number_of_steps_per_frame,isRenormed=True,saveMP4=False,fr
     
     mesh2 = ax2.pcolormesh(gS.X,gS.Y,np.angle(gS.U), vmin=-np.pi, vmax=np.pi)
     plt.colorbar(mesh2,ax=ax2)
-
+    
+    if isRenormed:
+        gS.renorm()
+            
     def make_frame(k):
-        if isRenormed:
-            gS.renorm(vortex,xv,yv)
-        
         C = (np.abs(gS.U)**2)[:-1,:-1]
         mesh1.set_array(C.ravel())
         
@@ -35,9 +38,11 @@ def evolution_anim(gS,number_of_steps_per_frame,isRenormed=True,saveMP4=False,fr
         ax1.set_title("{:1.1e}".format(np.sum((np.abs(gS.oldU-gS.U))**2)))
             
         for i in range(number_of_steps_per_frame):
-            if isRenormed:
-                gS.renorm(vortex,xv,yv)
             gS.step()
+            if isRenormed:
+                gS.renorm()
+            if vtx != None:
+                vortex.force_phase(gS,vtx)
             
         return fig,
     
