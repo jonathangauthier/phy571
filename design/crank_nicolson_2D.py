@@ -2,6 +2,7 @@ import numpy as np
 import scipy.linalg as lin
 from scipy.sparse import diags
 
+
 ## Definition of the Algorithm
 
 class groundState2DCN:
@@ -99,12 +100,10 @@ class groundState2DCN:
         #redefinition of the matrix By
         self.By = create_B_matrix(self.Jy,self.sigma_y)
     
-    def renorm(self,vortex=False,xv=0,yv=0):
+    def renorm(self):
         """Renormalize the current solution"""
         self.U /= (np.sum(np.abs(self.U)**2)*self.dx*self.dy)**0.5
-        if vortex:
-            self.U = np.abs(self.U)*np.exp(1j*np.angle((self.X-xv)+1j*(self.Y-yv)))
- 
+
  
 def create_A_matrix(J,sigma):
     """Create a tridiagonal matrix in the format used in the CN algorithm for the left hand side"""
