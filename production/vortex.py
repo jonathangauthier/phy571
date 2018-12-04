@@ -9,15 +9,16 @@ class vortex:
         self.xi = xi
         self.p =p
         
-        self.rho = ((gS.X-self.xv)**2 + (gS.Y-self.yv)**2)**0.5
+        self.rho = np.sqrt((gS.X-self.xv)**2 + (gS.Y-self.yv)**2)
         self.rho_n = self.rho/self.xi
-        self.theta = np.angle((gS.X-self.xv) + 1j*(gS.Y-self.yv))
+        self.theta = np.arctan2((gS.Y-self.yv),(gS.X-self.xv))
 
 def shape_vortex(gS,vtx):
     """create a hole in the BEC gS centered in (xv,yv) with a typical width xi"""
-    gS.U = gS.U * vtx.rho_n/(2+vtx.rho_n**2)**0.5
+    gS.U = gS.U * vtx.rho_n/np.sqrt(2+vtx.rho_n**2)
 
 
 def force_phase(gS,vtx):
     """create a vortex in the BEC gS centered in (xv,yv) with an integer-valued winding number p"""
+    return 
     gS.U = np.abs(gS.U) * np.exp(1j*vtx.p*vtx.theta)

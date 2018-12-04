@@ -102,7 +102,8 @@ class groundState2DCN:
     
     def renorm(self):
         """Renormalize the current solution"""
-        self.U /= (np.sum(np.abs(self.U)**2)*self.dx*self.dy)**0.5
+        self.U /= np.sqrt((np.sum(np.abs(self.U)**2)*self.dx*self.dy))
+        self.U = np.abs(self.U)
 
  
 def create_A_matrix(J,sigma):
