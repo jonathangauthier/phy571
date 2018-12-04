@@ -4,10 +4,18 @@ import os
 def get_ground(gS, threshold=1e-8):
     gS.renorm()
     gS.step()
-    while np.sum((np.abs(gS.oldU-gS.U))**2)>threshold:
-        gS.renorm()
+    overlapping_previous_step = np.sum((np.abs(gS.oldU-gS.U))**2)
+    ops0 = overlapping_previous_step
+    gS.renorm()
+    last_percentage_printed = 0
+    while overlapping_previous_step>threshold:
+        progress_percentage = int(100*(np.log(ops0)-np.log(overlapping_previous_step))/(np.log(ops0)-np.log(threshold)))
+        if progress_percentage >= last_percentage_printed+10:
+            print(str(progress_percentage)+"%")
+            last_percentage_printed = progress_percentage
         gS.step()
         gS.renorm()
+        overlapping_previous_step = np.sum((np.abs(gS.oldU-gS.U))**2)
     return gS.U
     
     
@@ -19,7 +27,8 @@ def save_ground(gS,src,overwrite=False):
                 "{:1.1e}".format(gS.pot.wx)+"_"+\
                 "{:1.1e}".format(gS.pot.Ng)
                 
-    if overwrite or not os.path.isfile(src+"data\\"+name_func):
+    if overwrite or not os.path.isfile(src+"data\\"+name_func+'.txt'):
+        print("Saving the ground state...")
         grd_wave_func = get_ground(gS)
         np.savetxt(src+"data\\"+name_func+".txt",grd_wave_func)
 
@@ -31,5 +40,6 @@ def load_ground(gS,src):
                 str(int(gS.Jx))+"_"+\
                 "{:1.1e}".format(gS.pot.wx)+"_"+\
                 "{:1.1e}".format(gS.pot.Ng)
-    return np.loadtxt(src+"data\\"+name_func+".txt",dtype=complex)
+    gS.U = np.loadtxt(src+"data\\"+name_func+".txt",dtype=complex)
+    gS.oldU = np.copy(gS.U)
     
