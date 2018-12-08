@@ -13,12 +13,13 @@ This project is divided in two parts:
 - 2D: simulation of 2D BECS
 
 For both of them, simulation will be directed in the main.py file
-while the other files contains useful functions or classes.
+while the other files contain useful functions or classes.
 
 WARNING: In our environment, it was not possible to import other
-=======	 files but to use the os.chdir method.
+	 files but to use the os.chdir method.
 	 If you want to properly import the files in your 
-	 environment you have to modify these files:
+	 environment you have to modify the src variable which is
+	 defined at the beginning of each of these files:
 	 - 1D/production/animation.py
 	 - 1D/production/g_variation.py
 	 - 1D/production/main.py
